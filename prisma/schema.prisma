@@ -1,0 +1,301 @@
+// ============================================================================
+// Schéma Prisma — Application de gestion de tâches collaborative
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ----------------------------------------------------------------------------
+// Enums
+// ----------------------------------------------------------------------------
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ProjectRole {
+  OWNER
+  MANAGER
+  MEMBER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_STATUS_CHANGED
+  COMMENT_ADDED
+  DUE_DATE_REMINDER
+  PROJECT_INVITATION
+  TEAM_INVITATION
+}
+
+// ----------------------------------------------------------------------------
+// Authentification & utilisateurs
+// ----------------------------------------------------------------------------
+
+model User {
+  id           Int      @id @default(autoincrement())
+  userid       String   @unique @default(uuid())
+  email        String   @unique
+  passwordhash String   @map("password_hash")
+  firstname    String   @map("first_name")
+  lastname     String   @map("last_name")
+  avatarurl    String?  @map("avatar_url")
+  createdat    DateTime @default(now()) @map("created_at")
+  updatedat    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  teammemberships    TeamMember[]
+  projectmemberships ProjectMember[]
+  createdtasks       Task[]          @relation("taskcreatedby")
+  taskassignees      TaskAssignee[]
+  comments           Comment[]
+  attachment         Attachment[]
+  notifications      Notification[]
+  refreshtokens      RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id           Int       @id @default(autoincrement())
+  refreshtoken String    @unique @map("refresh_token")
+  tokenhash    String    @map("token_hash")
+  userid       String    @map("user_id")
+  user         User      @relation(fields: [userid], references: [userid], onDelete: Cascade)
+  expiresat    DateTime  @map("expires_at")
+  revokedat    DateTime? @map("revoked_at")
+  createdat    DateTime  @default(now()) @map("created_at")
+
+  @@index([userid])
+  @@map("refresh_tokens")
+}
+
+// ----------------------------------------------------------------------------
+// Équipes
+// ----------------------------------------------------------------------------
+
+model Team {
+  id          Int      @id @default(autoincrement())
+  teamid      String   @unique @default(uuid()) @map("team_id")
+  name        String
+  description String?
+  createdat   DateTime @default(now()) @map("created_at")
+  updatedat   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  members  TeamMember[]
+  projects Project[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id           Int      @id @default(autoincrement())
+  teammemberid String   @unique @default(uuid()) @map("team_member_id")
+  teamid       String   @map("team_id")
+  userid       String   @map("user_id")
+  role         TeamRole
+  joinedat     DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  team Team @relation(fields: [teamid], references: [teamid], onDelete: Cascade)
+  user User @relation(fields: [userid], references: [userid], onDelete: Cascade)
+
+  @@unique([teamid, userid])
+  @@index([teamid])
+  @@index([userid])
+  @@map("team_members")
+}
+
+// ----------------------------------------------------------------------------
+// Projets
+// ----------------------------------------------------------------------------
+
+model Project {
+  id          Int       @id @default(autoincrement())
+  projectid   String    @unique @default(uuid()) @map("project_id")
+  teamid      String    @map("team_id")
+  name        String
+  description String?
+  startdate   DateTime? @map("start_date")
+  enddate     DateTime? @map("end_date")
+  archivedat  DateTime? @map("archived_at")
+  createdat   DateTime  @default(now()) @map("created_at")
+  updatedat   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  team        Team            @relation(fields: [teamid], references: [teamid], onDelete: Cascade)
+  members     ProjectMember[]
+  tasks       Task[]
+  attachments Attachment[]
+
+  @@index([teamid])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id              Int         @id @default(autoincrement())
+  projectmemberid String      @unique @default(uuid())
+  projectid       String      @map("project_id")
+  userid          String      @map("user_id")
+  role            ProjectRole @default(MEMBER)
+  joinedat        DateTime    @default(now()) @map("joined_at")
+
+  // Relations
+  project Project @relation(fields: [projectid], references: [projectid], onDelete: Cascade)
+  user    User    @relation(fields: [userid], references: [userid], onDelete: Cascade)
+
+  @@unique([projectid, userid])
+  @@index([userid])
+  @@map("project_members")
+}
+
+// ----------------------------------------------------------------------------
+// Tâches
+// ----------------------------------------------------------------------------
+
+model Task {
+  id          Int          @id @default(autoincrement())
+  taskid      String       @unique @default(uuid()) @map("task_id")
+  title       String
+  description String?
+  projectid   String       @map("project_id")
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  duedate     DateTime?    @map("due_date")
+  completedat DateTime?    @map("completed_at")
+
+  project     Project @relation(fields: [projectid], references: [projectid], onDelete: Cascade)
+  createdbyid String  @map("created_by_id")
+  createdby   User    @relation("taskcreatedby", fields: [createdbyid], references: [userid], onDelete: Cascade)
+
+  // Sous-tâches : auto-relation optionnelle vers une tâche parente
+  parenttaskid String? @map("parent_task_id")
+  parenttask   Task?   @relation("tasksubtasks", fields: [parenttaskid], references: [taskid], onDelete: Cascade)
+  subtasks     Task[]  @relation("tasksubtasks")
+
+  createdat DateTime @default(now()) @map("created_at")
+  updatedat DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  assignees   TaskAssignee[]
+  comments    Comment[]
+  attachments Attachment[]
+
+  @@index([projectid])
+  @@index([parenttaskid])
+  @@index([status])
+  @@map("tasks")
+}
+
+model TaskAssignee {
+  id             Int      @id @default(autoincrement())
+  taskassigneeid String   @unique @default(uuid()) @map("task_assignee_id")
+  taskid         String   @map("task_id")
+  userid         String   @map("user_id")
+  assignedat     DateTime @default(now()) @map("assigned_at")
+
+  // Relations
+  task Task @relation(fields: [taskid], references: [taskid], onDelete: Cascade)
+  user User @relation(fields: [userid], references: [userid], onDelete: Cascade)
+
+  @@unique([taskid, userid])
+  @@index([taskid])
+  @@index([userid])
+  @@map("task_assignees")
+}
+
+// ----------------------------------------------------------------------------
+// Commentaires
+// ----------------------------------------------------------------------------
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  commentid String   @unique @default(uuid()) @map("comment_id")
+  content   String
+  taskid    String   @map("task_id")
+  authorid  String   @map("author_id")
+  createdat DateTime @default(now()) @map("created_at")
+  updatedat DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  task   Task @relation(fields: [taskid], references: [taskid], onDelete: Cascade)
+  author User @relation(fields: [authorid], references: [userid])
+
+  @@index([taskid])
+  @@map("comments")
+}
+
+// ----------------------------------------------------------------------------
+// Fichiers
+// ----------------------------------------------------------------------------
+
+model Attachment {
+  id           Int      @id @default(autoincrement())
+  attachmentid String   @unique @default(uuid()) @map("attachment_id")
+  filename     String
+  mimetype     String   @map("mime_type")
+  size         Int
+  s3key        String   @map("s3_key")
+  uploadedbyid String   @map("uploaded_by_id")
+  createdat    DateTime @default(now()) @map("created_at")
+
+  // Un fichier est rattaché soit à une tâche, soit à un projet (l'un des deux est renseigné)
+  taskid    String? @map("task_id")
+  projectid String? @map("project_id")
+
+  uploadedby User     @relation(fields: [uploadedbyid], references: [userid])
+  task       Task?    @relation(fields: [taskid], references: [taskid], onDelete: Cascade)
+  project    Project? @relation(fields: [projectid], references: [projectid], onDelete: Cascade)
+
+  @@index([taskid])
+  @@index([projectid])
+  @@map("attachments")
+}
+
+// ----------------------------------------------------------------------------
+// Notifications
+// ----------------------------------------------------------------------------
+
+model Notification {
+  id             Int              @default(autoincrement())
+  notificationid String           @unique @default(uuid()) @map("notification_id")
+  userid         String           @map("user_id")
+  type           NotificationType
+  title          String
+  message        String
+  isread         Boolean          @default(false) @map("is_read")
+
+  // Référence polymorphe légère vers l'objet source (tâche, commentaire, projet...)
+  sourcetype String? @map("source_type")
+  sourceid   String? @map("source_id")
+
+  createdat DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userid], references: [userid], onDelete: Cascade)
+
+  @@index([userid, isread])
+  @@map("notifications")
+}
