@@ -2,20 +2,25 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import cookieParser from "cookie-parser";
 import prisma from "./prisma/client.js";
+import { errorHandler } from "./middlewares/errorHandler.js";
 
-// import router from "./routes/index.js";
+import router from "./routes/index.js";
 
 const app = express();
 
 // Sécurité HTTP headers
 app.use(helmet());
 
-// CORS
+const allowedOrigins = (process.env.FRONTEND_URLS || "").split(",").map((s) => s.trim()).filter(Boolean);
+
+// CORS — credentials:true nécessaire pour que le cookie httpOnly du refresh
+// token voyage entre le frontend et l'API.
 app.use(
     cors({
-        // origin: process.env.FRONTEND_URL,
-        // credentials: true,
+        origin: allowedOrigins,
+        credentials: true,
     })
 );
 
@@ -25,9 +30,10 @@ app.use(morgan("dev"));
 // Parsing du corps des requêtes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Toutes les routes API
-// app.use("/api", router);
+app.use("/api", router);
 
 // Route d'accueil
 app.get("/", (_req, res) => {
@@ -63,6 +69,6 @@ app.use((_req, res) => {
 });
 
 // Gestionnaire d'erreurs global
-// app.use(errorHandler);
+app.use(errorHandler);
 
 export default app;
