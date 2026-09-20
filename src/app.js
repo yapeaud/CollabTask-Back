@@ -13,7 +13,7 @@ const app = express();
 // Sécurité HTTP headers
 app.use(helmet());
 
-const allowedOrigins = (process.env.FRONTEND_URLS || "").split(",").map((s) => s.trim()).filter(Boolean);
+const allowedOrigins = (process.env.FRONTEND_URL || "").split(",").map((s) => s.trim()).filter(Boolean);
 
 // CORS — credentials:true nécessaire pour que le cookie httpOnly du refresh
 // token voyage entre le frontend et l'API.
