@@ -34,7 +34,6 @@ app.use(cookieParser());
 
 // Toutes les routes API
 app.use("/api", router);
-
 // Route d'accueil
 app.get("/", (_req, res) => {
     res.json({
@@ -55,7 +54,7 @@ app.get("/users", async (_req, res) => {
 
         res.status(500).json({
             success: false,
-            message: "Erreur serveur",
+            message: "Erreur serveur ",
         });
     }
 });
