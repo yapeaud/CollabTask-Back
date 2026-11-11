@@ -16,7 +16,7 @@ export async function createNewNotification({userid,type,title,message,sourcetyp
 export async function getAllNotifications(userid) {
     const notifications = await prisma.notification.findMany({
         where:{userid:userid},
-        select:{id:false}
+       
     })
 
     return notifications;

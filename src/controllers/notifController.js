@@ -14,7 +14,7 @@ export async function create(req, res, next) {
         }
 
         const notification = await notifService.createNewNotification({ userid, type, title, message, sourcetype, sourceid})
-        return res.status(201).json({message:" Notification crée",notification})
+        return res.status(201).json({message:" Notification crée.",notification})
     } catch (error) {
         next(error);
     }
@@ -25,15 +25,11 @@ export async function create(req, res, next) {
 export async function retrieves(req,res,next){
     try {
         const userid=req.query.userid;
-        console.log(userid)
         if(!userid)return res.status(400).json({success:"false",message:"Identifiant requis"});
 
         const notifications= await notifService.getAllNotifications(userid);
-        if(notifications.length){
-            return res.status(200).json({success:true,notifications})
-        }else{
-            return res.status(202).json({success:true,message:"Aucune notification pour le moment",notifications})
-        }
+        
+        return res.status(200).json({success:true,notifications});
     } catch (error) {
         next(error)
     }
@@ -54,7 +50,7 @@ export async function retrieves(req,res,next){
  //Controlleur pour marquer toute les notifications comme lu
  export async function setAllAsRead(req,res,next) {
      try {
-        const userid=req.query.userid;
+        const {userid}=req.user;
         if(!userid)return res.status(400).json({success:false,message:"Identifiant requis"});
 
         const allIsRead= await notifService.MakeAllNotifAsRead(userid);
@@ -80,7 +76,7 @@ export async function retrieves(req,res,next){
  //controlleur pour supprimer toute les  notifications d'un utilisateur
  export async function removeAll(req,res,next) {
     try {
-        const userid=req.query.userid;
+        const {userid}=req.user;
         if(!userid)return res.status(400).json({success:true,message:"Identifiant requis"});
 
         const isremove = await notifService.deleteAllNotifications(userid);
